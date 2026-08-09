@@ -2,81 +2,84 @@
 STM32 HAL, GPIO Driver kodları
 
 # STM32F4 GPIO Driver & Debounce Implementation
-
 # 🚀 STM32F4 Non-Blocking I/O & Debounce Sürücüsü
 
-Bu proje, STM32F4 serisi mikrodenetleyiciler için geliştirilmiş, **bloklamayan (non-blocking) buton arkı (debounce) engelleme** ve **GPIO çıkış yönetimini** kolaylaştıran modüler bir C sürücüsüdür.
+Bu proje, kendimi gömülü sistemler ve sürücü geliştirme alanında ilerletmek, STM32 mimarisinde temiz kod yapıları oluşturmak amacıyla hazırladığım bir çalışmadır. 🛠️
 
-İşlemciyi `HAL_Delay()` gibi fonksiyonlarla durdurmadan, `HAL_GetTick()` zamanlayıcısını kullanarak buton okumalarını güvenli hale getirir ve tüm giriş/çıkış pinlerini tek bir yapı (`IO_Info_t`) altında yönetir.
-
----
-
-## 📌 Özellikler
-
-- **Bloklamayan Debounce Algoritması:** Butonlardaki mekanik sıçramaları (ark/noise) işlemciyi kilitlenmeden milisaniye bazlı filtreler.
-- **Merkezi I/O Yönetimi:** Giriş ve çıkış pinlerini tek bir struct yapısında toplayarak temiz bir kod mimarisi sunar.
-- **Kolay Entegrasyon:** STM32CubeIDE ve HAL kütüphaneleri ile tam uyumludur.
+Projede, STM32F4 serisi kartlar için **işlemciyi kilitlemeyen (non-blocking) buton arkı (debounce) engelleme** ve **GPIO çıkış yönetimi** modüler bir C yapısıyla kurgulanmıştır.
 
 ---
 
-## 🛠️ Kullanım ve Kod Örneği
+## 📌 Bu Sürücü Ne İşe Yarar?
 
-### 1. Sürücüyü Dahil Etme
-`main.c` dosyanızda ilgili başlık dosyasını projenize ekleyin:
+1. **İşlemciyi Durdurmaz:** Buton arkını (sıçramasını) engellemek için `HAL_Delay()` kullanılmaz. Böylece işlemci bekleme yapmaz, arka planda diğer işlerini yapmaya devam eder.
+2. **Kodu Düzenli Tutur:** Bütün butonları ve LED'leri tek bir `ioInfo` paketi (struct) içinde toplar. Kodun içinde karmaşık pini bulma derdi kalmaz.
+
+---
+
+## 🛠️ Detaylı ve Adım Adım Kullanım Rehberi
+
+Sürücüyü kendi projenizde kullanmak çok basittir. Sadece şu 3 adımı takip edin:
+
+### Adım 1: Başlık Dosyasını Ekleyin
+`main.c` dosyanızın en üstüne sürücü dosyasını dahil edin:
 
 #include "io_driver.h"
 
-### 2. Sürücüyü Başlatma ve Döngüde Çağırma
-`IO_Info_t` türünde bir değişken tanımlayın,
+### Adım 2: Değişken Tanımlayın ve Sürücüyü Başlatın
+`main()` fonksiyonunuzun içinde, kart ilk açıldığında pinlerin eşlenmesi için `IO_Initialization` fonksiyonunu bir kez çağırın:
 
-`main()` içinde `IO_Initialization()` ile yapılandırın
-
-ve
-
-`while(1)` döngüsü içerisinde `IO_Status_Control()` fonksiyonunu sürekli çağırın:
-
-/* Global veya main içi değişken tanımlaması */
-IO_Info_t ioInfo;
+/* main.c içinde */
+IO_Info_t ioInfo; // Sürücü değişkenimiz
 
 int main(void)
 {
     HAL_Init();
     SystemClock_Config();
-    MX_GPIO_Init(); // STM32CubeMX tarafında pinlerin modları ayarlanmış olmalıdır
+    MX_GPIO_Init(); // STM32CubeMX pin ayarları
 
-    // I/O yapısını ve pin eşlemelerini başlat
+    // Sürücüyü ve pin tanımlarını başlatıyoruz
     IO_Initialization(&ioInfo);
 
     while (1)
     {
-        // Tüm çıkış durumlarını günceller ve buton debounce kontrollerini yapar
-        IO_Status_Control(&ioInfo);
+        // ...
+    }
+}
 
-        // Debounce süzgecinden geçmiş buton durumuna göre işlem yapma
-        if (ioInfo.inputs_Info.User_Button.inputStatus == Input_Status_HIGH)
-        {
-            ioInfo.outputs_Info.ledGreen.pinStates  = GPIO_PIN_SET;
-            ioInfo.outputs_Info.ledBlue.pinStates   = GPIO_PIN_SET;
-            ioInfo.outputs_Info.ledYellow.pinStates = GPIO_PIN_SET;
-            ioInfo.outputs_Info.ledRed.pinStates    = GPIO_PIN_SET;
-        }
-        else
-        {
-            ioInfo.outputs_Info.ledGreen.pinStates  = GPIO_PIN_RESET;
-            ioInfo.outputs_Info.ledBlue.pinStates   = GPIO_PIN_RESET;
-            ioInfo.outputs_Info.ledYellow.pinStates = GPIO_PIN_RESET;
-            ioInfo.outputs_Info.ledRed.pinStates    = GPIO_PIN_RESET;
-        }
+### Adım 3: Ana Döngüde Sürücüyü Çalıştırın ve Durumları Okuyun
+`while(1)` sonsuz döngünüzün en üstüne `IO_Status_Control(&ioInfo);` satırını koyun. Bu satır butonların basılma durumunu kontrol eder ve LED'lerinizi günceller.
+
+Siz sadece butonun filtrelenmiş son durumunu okur ve LED'e ne yapmak istediğinizi söylersiniz:
+
+while (1)
+{
+    // 1. Sürücünün butonları okumasını ve LED durumlarını güncellemesini sağla
+    IO_Status_Control(&ioInfo);
+
+    // 2. Buton basıldı mı kontrol et (Filtrelenmiş, temiz veri)
+    if (ioInfo.inputs_Info.User_Button.inputStatus == Input_Status_HIGH)
+    {
+        // Butona basıldıysa tüm LED'lerin durumunu YAK (SET) olarak ayarla
+        ioInfo.outputs_Info.ledGreen.pinStates  = GPIO_PIN_SET;
+        ioInfo.outputs_Info.ledBlue.pinStates   = GPIO_PIN_SET;
+        ioInfo.outputs_Info.ledYellow.pinStates = GPIO_PIN_SET;
+        ioInfo.outputs_Info.ledRed.pinStates    = GPIO_PIN_SET;
+    }
+    else
+    {
+        // Butona basılmıyorsa tüm LED'lerin durumunu SÖNDÜR (RESET) olarak ayarla
+        ioInfo.outputs_Info.ledGreen.pinStates  = GPIO_PIN_RESET;
+        ioInfo.outputs_Info.ledBlue.pinStates   = GPIO_PIN_RESET;
+        ioInfo.outputs_Info.ledYellow.pinStates = GPIO_PIN_RESET;
+        ioInfo.outputs_Info.ledRed.pinStates    = GPIO_PIN_RESET;
     }
 }
 
 ---
 
-## ⚙️ Fonksiyonlar ve Ayarlar
+## ⚙️ Önemli Ayarlar
 
-- **IO_Initialization(IO_Info_t *ioInfo)**: `main.h` içinde tanımlı donanım pinlerini sürücüye bağlar ve ilk durumlarını ayarlar.
-- **IO_Status_Control(IO_Info_t *ioInfo)**: Ana döngü içinde periyodik olarak çalıştırılmalıdır. Çıkış durumlarını fiziksel pinlere yansıtır ve girişlerin debounce işlemlerini yürütür.
-- **DEBOUNCE_TIME**: `io_driver.h` içerisinde tanımlı ark engelleme süresidir (Varsayılan: 100 ms).
-
+- **Debounce Süresi:** `io_driver.h` dosyasındaki `DEBOUNCE_TIME` değerini değiştirerek butonun kaç milisaniye sonra "basıldı" kabul edileceğini ayarlayabilirsiniz (Varsayılan: 100 ms).
 ---
 
